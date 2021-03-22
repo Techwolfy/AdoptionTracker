@@ -16,27 +16,33 @@ from lxml import html, etree
 
 PAWS_URL = 'https://www.paws.org/adopt/dogs/'
 PETANGO_URL = 'https://www.petango.com/DesktopModules/Pethealth.Petango/Pethealth.Petango.DnnModules.AnimalSearchResult/API/Main/Search'
-
-USERAGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0'
-UA_HEADER = {'User-Agent': USERAGENT}
-PETANGO_HEADERS = {'ModuleId': '983', 'TabId': '278', 'User-Agent': USERAGENT}
+UA_HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0'}
 
 EXCLUDED_BREEDS = [
     'Boxer',
     'Chihuahua',
+    'Chow Chow',
     'Pit Bull',
+    'Rottweiler',
     'Staffordshire',
     'Small (under 24 lbs fully grown)'
 ]
+
+PETANGO_GOLDEN_RETRIEVER = '601'
+
 
 #
 # Globals
 #
 
+alertEnabled = False
+
 seenPAWS = {}
 seen = {}
 shelterIdsPetango = [
-    '2642'  #PAWS
+    '2642', #PAWS
+    '2361', #Benton County Canine Shelter
+    '6628'  #Tri-Cities Animal Shelter
 ]
 
 
@@ -94,7 +100,7 @@ def runPetangoShelter(shelterId):
         'recordAmount': 100
     }
 
-    r = requests.post(PETANGO_URL, data=search, headers=PETANGO_HEADERS)
+    r = requests.post(PETANGO_URL, data=search, headers={'ModuleId': '983', 'TabId': '278', **UA_HEADER})
     dogs = r.json()['items']
     delta = False
 
@@ -111,15 +117,62 @@ def runPetangoShelter(shelterId):
     if delta:
         alert()
 
+
+#
+# Search Petango by breed
+#
+
+def runPetango(location, gender, breedId):
+    search = {
+        'location': location,
+        'distance': '250',
+        'speciesId': '1',
+        'breedId': breedId,
+        'gender': gender,
+        'size': '',
+        'color': '',
+        'goodWithDogs': False,
+        'goodWithCats': False,
+        'goodWithChildren': False,
+        'mustHavePhoto': False,
+        'mustHaveVideo': False,
+        'declawed': '',
+        'happyTails': False,
+        'lostAnimals': False,
+        'animalId': '',
+        'moduleId': 843,
+        'recordOffset': 0,
+        'recordAmount': 100
+    }
+
+    r = requests.post(PETANGO_URL, data=search, headers={'ModuleId': '843', 'TabId': '260', **UA_HEADER})
+    dogs = r.json()['items']
+    delta = False
+
+    for dog in dogs:
+        if dog['id'] not in seen:
+            seen[dog['id']] = dog
+
+            if any(b in dog['breed'] for b in EXCLUDED_BREEDS):
+                continue
+
+            print('%s (Petango-0000-%s) - %s' % (dog['name'], dog['id'], dog['breed']))
+            delta = True
+
+    if delta:
+        alert()
+
+
 #
 # Alert user
 #
 
 def alert():
-    print(time.strftime('%c'))
-    for i in range(0, 5):
-        print('\x07', end='', flush=True)
-        time.sleep(0.25)
+    if alertEnabled:
+        print(time.strftime('%c'))
+        for i in range(0, 5):
+            print('\x07', end='', flush=True)
+            time.sleep(0.25)
     print()
 
 
@@ -132,4 +185,5 @@ if __name__ == '__main__':
         runPAWS()
         for shelter in shelterIdsPetango:
             runPetangoShelter(shelter)
-        time.sleep(1)
+        alertEnabled = True
+        time.sleep(30)

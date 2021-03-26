@@ -5,6 +5,7 @@
 #
 
 import json
+import re
 import time
 import requests
 from lxml import html, etree
@@ -16,6 +17,7 @@ from lxml import html, etree
 
 PAWS_URL = 'https://www.paws.org/adopt/dogs/'
 PETANGO_URL = 'https://www.petango.com/DesktopModules/Pethealth.Petango/Pethealth.Petango.DnnModules.AnimalSearchResult/API/Main/Search'
+PETFINDER_URL = 'https://www.petfinder.com/search/'
 UA_HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0'}
 
 EXCLUDED_BREEDS = [
@@ -36,14 +38,15 @@ PETANGO_GOLDEN_RETRIEVER = '601'
 #
 
 alertEnabled = False
+keys = {
+    'petfinderToken': '',
+    'location': '',
+    'sheltersPetango': [],
+    'sheltersPetfinder': []
+}
 
 seenPAWS = {}
 seen = {}
-shelterIdsPetango = [
-    '2642', #PAWS
-    '2361', #Benton County Canine Shelter
-    '6628'  #Tri-Cities Animal Shelter
-]
 
 
 #
@@ -164,6 +167,44 @@ def runPetango(location, gender, breedId):
 
 
 #
+# Search Petfinder shelters
+#
+
+def runPetfinderShelter(shelterId, page=1):
+    search = {
+        'page': str(page),
+        'limit[]': '100',
+        'status': 'adoptable',
+        'token': keys['petfinderToken'],
+        'distance[]': 'Anywhere',
+        'type[]': 'dogs',
+        'sort[]': 'recently_added',
+        'shelter_id[]': shelterId,
+        'include_transportable': 'true'
+    }
+
+    r = requests.get(PETFINDER_URL, params=search, headers={'X-Requested-With': 'XMLHttpRequest', **UA_HEADER})
+    result = r.json()['result']
+    dogs = result['animals']
+    delta = False
+
+    for dog in dogs:
+        if dog['animal']['id'] not in seen:
+            seen[dog['animal']['id']] = dog
+
+            if any(b in dog['animal']['breeds_label'] for b in EXCLUDED_BREEDS):
+                continue
+
+            print('%s (Petfinder-%s-%s) - %s' % (dog['animal']['name'], dog['organization']['display_id'], dog['animal']['id'], dog['animal']['breeds_label']))
+            delta = True
+
+    if page < result['pagination']['total_pages']:
+        runPetfinderShelter(shelterId, page + 1)
+
+    if delta:
+        alert()
+
+#
 # Alert user
 #
 
@@ -177,13 +218,29 @@ def alert():
 
 
 #
+# Load keys from file
+#
+
+def loadKeys():
+    global keys
+    with open('keys.json', 'r') as f:
+        raw = f.read()
+        parsed = re.sub('#.*', '', raw)
+        keys = json.loads(parsed)
+
+
+#
 # Main function
 #
 
 if __name__ == '__main__':
+    loadKeys()
     while True:
         runPAWS()
-        for shelter in shelterIdsPetango:
+        for shelter in keys['sheltersPetango']:
             runPetangoShelter(shelter)
+        runPetango(keys['location'], 'F', PETANGO_GOLDEN_RETRIEVER)
+        for shelter in keys['sheltersPetfinder']:
+            runPetfinderShelter(shelter)
         alertEnabled = True
         time.sleep(30)

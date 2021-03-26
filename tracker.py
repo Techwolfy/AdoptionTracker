@@ -68,16 +68,18 @@ def runPAWS():
         animalId = animalIdLink[0].rsplit('=', 1)[-1] if len(animalIdLink) != 0 else '00000000'
         breed = dogData[1].text if len(dogData) > 2 else 'Breed Unknown'
 
-        if name not in seenPAWS or seenPAWS[name]['pending'] != pending or seenPAWS[name]['id'] != animalId:
-            seenPAWS[name] = {}
-            seenPAWS[name]['id'] = animalId
-            seenPAWS[name]['pending'] = pending
+        if name in seenPAWS and seenPAWS[name]['pending'] == pending and seenPAWS[name]['id'] == animalId:
+            continue
 
-            if any(b in breed for b in EXCLUDED_BREEDS):
-                continue
+        seenPAWS[name] = {}
+        seenPAWS[name]['id'] = animalId
+        seenPAWS[name]['pending'] = pending
 
-            print('%s%s (PAWS-%s) - %s' % (name, (' - Adoption Pending' if pending else ''), animalId, breed))
-            delta = True
+        if any(b in breed for b in EXCLUDED_BREEDS):
+            continue
+
+        print('%s%s (PAWS-%s) - %s' % (name, (' - Adoption Pending' if pending else ''), animalId, breed))
+        delta = True
 
     if delta:
         alert()
@@ -108,14 +110,16 @@ def runPetangoShelter(shelterId):
     delta = False
 
     for dog in dogs:
-        if dog['id'] not in seen:
-            seen[dog['id']] = dog
+        if dog['id'] in seen:
+            continue
 
-            if any(b in dog['breed'] for b in EXCLUDED_BREEDS):
-                continue
+        seen[dog['id']] = dog
 
-            print('%s (Petango-%s-%s) - %s' % (dog['name'], shelterId, dog['id'], dog['breed']))
-            delta = True
+        if any(b in dog['breed'] for b in EXCLUDED_BREEDS):
+            continue
+
+        print('%s (Petango-%s-%s) - %s' % (dog['name'], shelterId, dog['id'], dog['breed']))
+        delta = True
 
     if delta:
         alert()
@@ -153,14 +157,16 @@ def runPetango(location, gender, breedId):
     delta = False
 
     for dog in dogs:
-        if dog['id'] not in seen:
-            seen[dog['id']] = dog
+        if dog['id'] in seen:
+            continue
 
-            if any(b in dog['breed'] for b in EXCLUDED_BREEDS):
-                continue
+        seen[dog['id']] = dog
 
-            print('%s (Petango-0000-%s) - %s' % (dog['name'], dog['id'], dog['breed']))
-            delta = True
+        if any(b in dog['breed'] for b in EXCLUDED_BREEDS):
+            continue
+
+        print('%s (Petango-0000-%s) - %s' % (dog['name'], dog['id'], dog['breed']))
+        delta = True
 
     if delta:
         alert()
@@ -189,14 +195,16 @@ def runPetfinderShelter(shelterId, page=1):
     delta = False
 
     for dog in dogs:
-        if dog['animal']['id'] not in seen:
-            seen[dog['animal']['id']] = dog
+        if dog['animal']['id'] in seen:
+            continue
 
-            if any(b in dog['animal']['breeds_label'] for b in EXCLUDED_BREEDS):
-                continue
+        seen[dog['animal']['id']] = dog
 
-            print('%s (Petfinder-%s-%s) - %s' % (dog['animal']['name'], dog['organization']['display_id'], dog['animal']['id'], dog['animal']['breeds_label']))
-            delta = True
+        if any(b in dog['animal']['breeds_label'] for b in EXCLUDED_BREEDS):
+            continue
+
+        print('%s (Petfinder-%s-%s) - %s' % (dog['animal']['name'], dog['organization']['display_id'], dog['animal']['id'], dog['animal']['breeds_label']))
+        delta = True
 
     if page < result['pagination']['total_pages']:
         runPetfinderShelter(shelterId, page + 1)
@@ -218,6 +226,18 @@ def alert():
 
 
 #
+# Display waiting spinner
+#
+
+def spin(seconds):
+    sequence = ['|', '/', '-', '\\']
+    for i in range(0, seconds * 4):
+        print('%s %s (next update in: %ds)  ' % (sequence[i % 4], time.strftime('%c'), seconds - (i / 4)), end='\r')
+        time.sleep(0.25)
+    print(' ' * 80, end='\r')
+
+
+#
 # Load keys from file
 #
 
@@ -235,12 +255,18 @@ def loadKeys():
 
 if __name__ == '__main__':
     loadKeys()
+
     while True:
+
         runPAWS()
+
         for shelter in keys['sheltersPetango']:
             runPetangoShelter(shelter)
+
         runPetango(keys['location'], 'F', PETANGO_GOLDEN_RETRIEVER)
+
         for shelter in keys['sheltersPetfinder']:
             runPetfinderShelter(shelter)
+
         alertEnabled = True
-        time.sleep(30)
+        spin(30)

@@ -20,16 +20,6 @@ PETANGO_URL = 'https://www.petango.com/DesktopModules/Pethealth.Petango/Pethealt
 PETFINDER_URL = 'https://www.petfinder.com/search/'
 UA_HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0'}
 
-EXCLUDED_BREEDS = [
-    'Boxer',
-    'Chihuahua',
-    'Chow Chow',
-    'Pit Bull',
-    'Rottweiler',
-    'Staffordshire',
-    'Small (under 24 lbs fully grown)'
-]
-
 INTERVAL = 30
 
 PETANGO_GOLDEN_RETRIEVER = '601'
@@ -45,6 +35,7 @@ alertTriggered = False
 keys = {
     'petfinderToken': '',
     'location': '',
+    'excludedBreeds': [],
     'sheltersPetango': [],
     'sheltersPetfinder': []
 }
@@ -53,15 +44,54 @@ seen = {}
 
 
 #
-# Load keys from file
+# Load state from file
 #
 
-def loadKeys():
+def loadState():
     global keys
+    global seen
+
     with open('keys.json', 'r') as f:
         raw = f.read()
         parsed = re.sub('#.*', '', raw)
         keys = json.loads(parsed)
+
+    try:
+        with open('state.json', 'r') as f:
+            state = f.read()
+            seen = json.loads(state)
+
+        shelterId = ''
+        for animalId in seen:
+            if seen[animalId]['shelterId'] != shelterId and shelterId != '':
+                print()
+            shelterId = seen[animalId]['shelterId']
+            printDog(seen[animalId])
+
+    except FileNotFoundError:
+        pass
+
+
+#
+# Save state to file
+#
+
+def saveState():
+    with open('state.json', 'w') as f:
+        f.write(json.dumps(seen))
+
+
+#
+# Display dog information
+#
+
+def printDog(dog):
+    adoptedString = ''
+    if dog['timeAdopted'] != 0:
+        adoptedString = ' - ADOPTED [in %.2fh]' % ((dog['timeAdopted'] - dog['timeFound']) / 3600)
+    elif dog['pending']:
+        adoptedString = ' - Adoption Pending'
+    print('%s%s (%s-%s-%s) - %s' % (dog['name'], adoptedString, dog['provider'], dog['shelterId'], dog['animalId'], dog['breed']))
 
 
 #
@@ -88,7 +118,7 @@ def handleDog(animalId, shelterId, name, breed, photoUrl, adoptionPending, provi
     seen[animalId]['timeSeen'] = time.time()
     seen[animalId]['data'] = data
 
-    if any(b in breed for b in EXCLUDED_BREEDS):
+    if any(b in breed for b in keys['excludedBreeds']):
         return
 
     with open('dogs/%s.json' % animalId, 'w') as f:
@@ -99,8 +129,7 @@ def handleDog(animalId, shelterId, name, breed, photoUrl, adoptionPending, provi
         with open('dogs/%s.%s' % (animalId, ext), 'wb') as f:
             f.write(image.content)
 
-    pendingString = ' - Adoption Pending' if adoptionPending else ''
-    print('%s%s (%s-%s-%s) - %s' % (name, pendingString, provider, shelterId, animalId, breed))
+    printDog(seen[animalId])
     alertTriggered = True
 
 
@@ -122,8 +151,7 @@ def checkDogs():
         with open('dogs/%s.json' % dog['animalId'], 'w') as f:
             f.write(json.dumps(dog))
 
-        hours = (now - dog['timeSeen']) / 3600
-        print('%s - ADOPTED in %.2fh (%s-%s-%s) - %s' % (dog['name'], hours, dog['provider'], dog['shelterId'], dog['animalId'], dog['breed']))
+        printDog(dog)
         delta = True
 
     if delta:
@@ -156,9 +184,6 @@ def runPAWS():
                   'PAWS',
                   etree.tostring(dog, encoding='unicode'))
 
-    if alertTriggered:
-        print()
-
 
 #
 # Search Petango shelters
@@ -184,7 +209,7 @@ def runPetangoShelter(shelterId):
     dogs = r.json()['items']
 
     for dog in dogs:
-        handleDog(dog['id'],
+        handleDog(str(dog['id']),
                   shelterId,
                   dog['name'],
                   dog['breed'],
@@ -192,9 +217,6 @@ def runPetangoShelter(shelterId):
                   False,
                   'Petango',
                   dog)
-
-    if alertTriggered:
-        print()
 
 
 #
@@ -228,7 +250,7 @@ def runPetango(location, gender, breedId):
     dogs = r.json()['items']
 
     for dog in dogs:
-        handleDog(dog['id'],
+        handleDog(str(dog['id']),
                   '0000',
                   dog['name'],
                   dog['breed'],
@@ -236,9 +258,6 @@ def runPetango(location, gender, breedId):
                   False,
                   'Petango',
                   dog)
-
-    if alertTriggered:
-        print()
 
 
 #
@@ -263,7 +282,7 @@ def runPetfinderShelter(shelterId, page=1):
     dogs = result['animals']
 
     for dog in dogs:
-        handleDog(dog['animal']['id'],
+        handleDog(str(dog['animal']['id']),
                   dog['organization']['display_id'],
                   dog['animal']['name'],
                   dog['animal']['breeds_label'],
@@ -274,9 +293,6 @@ def runPetfinderShelter(shelterId, page=1):
 
     if page < result['pagination']['total_pages']:
         runPetfinderShelter(shelterId, page + 1)
-
-    if alertTriggered:
-        print()
 
 
 #
@@ -319,7 +335,7 @@ def spin(seconds):
 #
 
 if __name__ == '__main__':
-    loadKeys()
+    loadState()
 
     while True:
         runPAWS()
@@ -334,4 +350,5 @@ if __name__ == '__main__':
         checkDogs()
 
         handleAlert()
+        saveState()
         spin(INTERVAL)

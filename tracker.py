@@ -61,12 +61,11 @@ def loadState():
             state = f.read()
             seen = json.loads(state)
 
-        shelterId = ''
-        for animalId in seen:
-            if seen[animalId]['shelterId'] != shelterId and shelterId != '':
+        for provider in seen:
+            for shelterId in seen[provider]:
+                for animalId in seen[provider][shelterId]:
+                    printDog(seen[provider][shelterId][animalId])
                 print()
-            shelterId = seen[animalId]['shelterId']
-            printDog(seen[animalId])
 
     except FileNotFoundError:
         pass
@@ -88,7 +87,8 @@ def saveState():
 def printDog(dog):
     adoptedString = ''
     if dog['timeAdopted'] != 0:
-        adoptedString = ' - ADOPTED [in %.2fh]' % ((dog['timeAdopted'] - dog['timeFound']) / 3600)
+        adoptedTime = dog['timeAdopted'] - dog['timeFound']
+        adoptedString = ' - ADOPTED [in %dd %dh %dm]' % (int(adoptedTime / 86400), int((adoptedTime % 86400) / 3600), int((adoptedTime % 3600) / 60))
     elif dog['pending']:
         adoptedString = ' - Adoption Pending'
     print('%s%s (%s-%s-%s) - %s' % (dog['name'], adoptedString, dog['provider'], dog['shelterId'], dog['animalId'], dog['breed']))
@@ -98,38 +98,45 @@ def printDog(dog):
 # Handle new dog
 #
 
-def handleDog(animalId, shelterId, name, breed, photoUrl, adoptionPending, provider, data):
+def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPending, data):
     global alertTriggered
 
-    if animalId in seen and seen[animalId]['pending'] == adoptionPending:
-        seen[animalId]['timeSeen'] = time.time()
+    if provider not in seen:
+        seen[provider] = {}
+
+    if shelterId not in seen[provider]:
+        seen[provider][shelterId] = {}
+
+    if animalId in seen[provider][shelterId] and seen[provider][shelterId][animalId]['pending'] == adoptionPending:
+        seen[provider][shelterId][animalId]['timeSeen'] = time.time()
         return
 
-    seen[animalId] = {}
-    seen[animalId]['animalId'] = animalId
-    seen[animalId]['shelterId'] = shelterId
-    seen[animalId]['name'] = name
-    seen[animalId]['breed'] = breed
-    seen[animalId]['photo'] = photoUrl,
-    seen[animalId]['pending'] = adoptionPending
-    seen[animalId]['provider'] = provider
-    seen[animalId]['timeFound'] = time.time()
-    seen[animalId]['timeAdopted'] = 0
-    seen[animalId]['timeSeen'] = time.time()
-    seen[animalId]['data'] = data
+    seen[provider][shelterId][animalId] = {
+        'animalId': animalId,
+        'shelterId': shelterId,
+        'name': name,
+        'breed': breed,
+        'photo': photoUrl,
+        'pending': adoptionPending,
+        'provider': provider,
+        'timeFound': time.time(),
+        'timeAdopted': 0,
+        'timeSeen': time.time(),
+        'data': data
+    }
 
     if any(b in breed for b in keys['excludedBreeds']):
         return
 
     with open('dogs/%s.json' % animalId, 'w') as f:
-        f.write(json.dumps(seen[animalId]))
+        f.write(json.dumps(seen[provider][shelterId][animalId]))
     if photoUrl:
         image = requests.get(photoUrl)
         ext = image.headers['Content-Type'].rsplit('/', 1)[-1]
         with open('dogs/%s.%s' % (animalId, ext), 'wb') as f:
             f.write(image.content)
 
-    printDog(seen[animalId])
+    printDog(seen[provider][shelterId][animalId])
     alertTriggered = True
 
 
@@ -141,18 +148,20 @@ def checkDogs():
     now = time.time()
     delta = False
 
-    for animalId in list(seen):
-        if now - seen[animalId]['timeSeen'] < INTERVAL * 2:
-            continue
+    for provider in seen:
+        for shelterId in seen[provider]:
+            for animalId in list(seen[provider][shelterId]):
+                if now - seen[provider][shelterId][animalId]['timeSeen'] < INTERVAL * 2:
+                    continue
 
-        dog = seen.pop(animalId)
-        dog['timeAdopted'] = now
+                dog = seen[provider][shelterId].pop(animalId)
+                dog['timeAdopted'] = now
 
-        with open('dogs/%s.json' % dog['animalId'], 'w') as f:
-            f.write(json.dumps(dog))
+                with open('dogs/%s.json' % dog['animalId'], 'w') as f:
+                    f.write(json.dumps(dog))
 
-        printDog(dog)
-        delta = True
+                printDog(dog)
+                delta = True
 
     if delta:
         print()
@@ -175,13 +184,13 @@ def runPAWS():
         pending = len(dog.xpath('.//span[@class="card-block__pill"]/text()')) != 0
         breed = dogData[1].text if len(dogData) > 2 else 'Breed Unknown'
 
-        handleDog(animalId + '-PAWS',
-                  'PAWS',
+        handleDog('PAWS',
+                  '0000',
+                  animalId + '-PAWS',
                   name,
                   breed,
                   photo,
                   pending,
-                  'PAWS',
                   etree.tostring(dog, encoding='unicode'))
 
 
@@ -208,15 +217,16 @@ def runPetangoShelter(shelterId):
     r = requests.post(PETANGO_URL, data=search, headers={'ModuleId': '983', 'TabId': '278', **UA_HEADER})
     dogs = r.json()['items']
 
+    delta = False
     for dog in dogs:
-        handleDog(str(dog['id']),
-                  shelterId,
-                  dog['name'],
-                  dog['breed'],
-                  dog['photo'],
-                  False,
-                  'Petango',
-                  dog)
+        delta = handleDog('Petango',
+                          str(shelterId),
+                          str(dog['id']),
+                          dog['name'],
+                          dog['breed'],
+                          dog['photo'],
+                          False,
+                          dog)
 
 
 #
@@ -250,13 +260,13 @@ def runPetango(location, gender, breedId):
     dogs = r.json()['items']
 
     for dog in dogs:
-        handleDog(str(dog['id']),
+        handleDog('Petango',
                   '0000',
+                  str(dog['id']),
                   dog['name'],
                   dog['breed'],
                   dog['photo'],
                   False,
-                  'Petango',
                   dog)
 
 
@@ -282,13 +292,13 @@ def runPetfinderShelter(shelterId, page=1):
     dogs = result['animals']
 
     for dog in dogs:
-        handleDog(str(dog['animal']['id']),
-                  dog['organization']['display_id'],
+        handleDog('Petfinder',
+                  shelterId,
+                  str(dog['animal']['id']),
                   dog['animal']['name'],
                   dog['animal']['breeds_label'],
                   dog['animal']['primary_photo_url'],
                   False,
-                  'Petfinder',
                   dog)
 
     if page < result['pagination']['total_pages']:

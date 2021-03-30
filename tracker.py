@@ -151,7 +151,7 @@ def checkDogs():
     for provider in seen:
         for shelterId in seen[provider]:
             for animalId in list(seen[provider][shelterId]):
-                if now - seen[provider][shelterId][animalId]['timeSeen'] < INTERVAL * 2:
+                if now - seen[provider][shelterId][animalId]['timeSeen'] < INTERVAL * 4:
                     continue
 
                 dog = seen[provider][shelterId].pop(animalId)
@@ -172,6 +172,9 @@ def checkDogs():
 
 def runPAWS():
     r = requests.get(PAWS_URL, headers=UA_HEADER)
+    if r.status_code != 200:
+        print('Request failed: %d, %s, %s' % (r.status_code, r.url, r.text))
+        return
     h = html.document_fromstring(r.text)
     dogs = h.xpath('//section[@class="cards"]//article')
 
@@ -215,6 +218,9 @@ def runPetangoShelter(shelterId):
     }
 
     r = requests.post(PETANGO_URL, data=search, headers={'ModuleId': '983', 'TabId': '278', **UA_HEADER})
+    if r.status_code != 200:
+        print('Request failed: %d, %s, %s' % (r.status_code, r.url, r.text))
+        return
     dogs = r.json()['items']
 
     delta = False
@@ -257,6 +263,9 @@ def runPetango(location, gender, breedId):
     }
 
     r = requests.post(PETANGO_URL, data=search, headers={'ModuleId': '843', 'TabId': '260', **UA_HEADER})
+    if r.status_code != 200:
+        print('Request failed: %d, %s, %s' % (r.status_code, r.url, r.text))
+        return
     dogs = r.json()['items']
 
     for dog in dogs:
@@ -288,6 +297,9 @@ def runPetfinderShelter(shelterId, page=1):
     }
 
     r = requests.get(PETFINDER_URL, params=search, headers={'X-Requested-With': 'XMLHttpRequest', **UA_HEADER})
+    if r.status_code != 200:
+        print('Request failed: %d, %s, %s' % (r.status_code, r.url, r.text))
+        return
     result = r.json()['result']
     dogs = result['animals']
 

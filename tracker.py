@@ -85,13 +85,14 @@ def saveState():
 #
 
 def printDog(dog):
-    adoptedString = ''
+    statusString = ''
     if dog['timeAdopted'] != 0:
-        adoptedTime = dog['timeAdopted'] - dog['timeFound']
-        adoptedString = ' - ADOPTED [in %dd %dh %dm]' % (int(adoptedTime / 86400), int((adoptedTime % 86400) / 3600), int((adoptedTime % 3600) / 60))
+        statusTime = dog['timeAdopted'] - dog['timeFound']
+        statusString = ' - ADOPTED [in %dd %dh %dm]' % (int(statusTime / 86400), int((statusTime % 86400) / 3600), int((statusTime % 3600) / 60))
     elif dog['pending']:
-        adoptedString = ' - Adoption Pending'
-    print('%s%s (%s-%s-%s) - %s' % (dog['name'], adoptedString, dog['provider'], dog['shelterId'], dog['animalId'], dog['breed']))
+        statusTime = dog['timePending'] - dog['timeFound']
+        statusString = ' - PENDING [in %dd %dh %dm]' % (int(statusTime / 86400), int((statusTime % 86400) / 3600), int((statusTime % 3600) / 60))
+    print('%s%s (%s-%s-%s) - %s' % (dog['name'], statusString, dog['provider'], dog['shelterId'], dog['animalId'], dog['breed']))
 
 
 #
@@ -110,9 +111,13 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
     if shelterId not in seen[provider]:
         seen[provider][shelterId] = {}
 
-    if animalId in seen[provider][shelterId] and seen[provider][shelterId][animalId]['pending'] == adoptionPending:
-        seen[provider][shelterId][animalId]['timeSeen'] = time.time()
-        return
+    animalSeen = False
+    if animalId in seen[provider][shelterId]:
+        animalSeen = True
+
+        if seen[provider][shelterId][animalId]['pending'] == adoptionPending:
+            seen[provider][shelterId][animalId]['timeSeen'] = time.time()
+            return
 
     seen[provider][shelterId][animalId] = {
         'animalId': animalId,
@@ -122,7 +127,8 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
         'photo': photoUrl,
         'pending': adoptionPending,
         'provider': provider,
-        'timeFound': time.time(),
+        'timeFound': seen[provider][shelterId][animalId]['timeFound'] if animalSeen else time.time(),
+        'timePending': time.time() if animalSeen else 0,
         'timeAdopted': 0,
         'timeSeen': time.time(),
         'data': data

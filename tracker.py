@@ -101,6 +101,9 @@ def printDog(dog):
 def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPending, data):
     global alertTriggered
 
+    if any(b in breed for b in keys['excludedBreeds']):
+        return
+
     if provider not in seen:
         seen[provider] = {}
 
@@ -125,9 +128,6 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
         'data': data
     }
 
-    if any(b in breed for b in keys['excludedBreeds']):
-        return
-
     with open('dogs/%s.json' % animalId, 'w') as f:
         f.write(json.dumps(seen[provider][shelterId][animalId]))
     if photoUrl:
@@ -151,6 +151,10 @@ def checkDogs():
     for provider in seen:
         for shelterId in seen[provider]:
             for animalId in list(seen[provider][shelterId]):
+                if any(b in seen[provider][shelterId][animalId]['breed'] for b in keys['excludedBreeds']):
+                    seen[provider][shelterId].pop(animalId)
+                    continue
+
                 if now - seen[provider][shelterId][animalId]['timeSeen'] < INTERVAL * 4:
                     continue
 

@@ -319,7 +319,7 @@ def runPetfinderShelter(shelterId, page=1):
                   str(dog['animal']['id']),
                   dog['animal']['name'],
                   dog['animal']['breeds_label'],
-                  dog['animal']['primary_photo_url'],
+                  dog['animal']['primary_photo_url'] if 'primary_photo_url' in dog['animal'] else None,
                   False,
                   dog)
 

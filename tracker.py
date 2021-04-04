@@ -112,12 +112,15 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
         seen[provider][shelterId] = {}
 
     animalSeen = False
+    animalPending = False
     if animalId in seen[provider][shelterId]:
         animalSeen = True
 
         if seen[provider][shelterId][animalId]['pending'] == adoptionPending:
             seen[provider][shelterId][animalId]['timeSeen'] = time.time()
             return
+        elif adoptionPending:
+            animalPending = True
 
     seen[provider][shelterId][animalId] = {
         'animalId': animalId,
@@ -143,7 +146,8 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
             f.write(image.content)
 
     printDog(seen[provider][shelterId][animalId])
-    alertTriggered = True
+    if not animalPending:
+        alertTriggered = True
 
 
 #

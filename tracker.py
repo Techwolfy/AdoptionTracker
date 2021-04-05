@@ -18,6 +18,7 @@ from lxml import html, etree
 PAWS_URL = 'https://www.paws.org/adopt/dogs/'
 PETANGO_URL = 'https://www.petango.com/DesktopModules/Pethealth.Petango/Pethealth.Petango.DnnModules.AnimalSearchResult/API/Main/Search'
 PETFINDER_URL = 'https://www.petfinder.com/search/'
+PETHARBOR_URL = 'http://petharbor.com/results.asp'
 UA_HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0'}
 
 INTERVAL = 30
@@ -345,6 +346,63 @@ def runPetfinderShelter(shelterId, page=1):
 
 
 #
+# Search PetHarbor shelters
+#
+
+def runPetharbor(shelterId, page=1):
+    search = {
+        'searchtype': 'ADOPT',
+        'start': '3',
+        'friends': '1',
+        'samaritans': '1',
+        'nosuccess': '0',
+        'rows': '25',
+        'imght': '120',
+        'imgres': 'detail',
+        'tWidth': '200',
+        'view': 'sysadm.v_animal_short',
+        'fontface': 'arial',
+        'fontsize': '10',
+        'miles': '50',
+        'shelterlist': '\'' + shelterId + '\'',
+        'atype': '',
+        'where': 'type_DOG',
+        'page': str(page)
+    }
+
+    r = requests.get(PETHARBOR_URL, params=search, headers=UA_HEADER)
+    if not checkRequest(r, 'Petharbor', shelterId):
+        return
+
+    h = html.document_fromstring(r.text)
+    h.make_links_absolute(PETHARBOR_URL)
+    dogs = h.xpath('//table[@class="ResultsTable"]//tr')
+
+    for dog in dogs:
+        dogData = dog.xpath('.//td/text()')
+        if dogData[0] == 'Picture':
+            continue
+
+        animalId = dogData[1].rsplit(' ', 1)[1].replace('(', '').replace(')', '')
+        name = dogData[1].rsplit(' ', 1)[0]
+        photo = dog.xpath('.//img/@src')[0]
+        breed = dogData[4]
+
+        handleDog('Petharbor',
+                  shelterId,
+                  animalId,
+                  name,
+                  breed,
+                  photo,
+                  False,
+                  etree.tostring(dog, encoding='unicode'))
+
+
+    if len(h.xpath('//a[text()="Next Page"]')) > 0:
+        runPetharbor(shelterId, page + 1)
+
+
+#
 # Alert user
 #
 
@@ -395,6 +453,9 @@ if __name__ == '__main__':
 
         for shelter in keys['sheltersPetfinder']:
             runPetfinderShelter(shelter)
+
+        for shelter in keys['sheltersPetharbor']:
+            runPetharbor(shelter)
 
         checkDogs()
 

@@ -183,16 +183,31 @@ def checkDogs():
 
 
 #
-# Handle failed request
+# Make HTTP request
 #
 
-def checkRequest(r, provider, shelterId):
-    if r.status_code != 200:
-        print('Request failed: %d, %s' % (r.status_code, r.url))
+def doRequest(provider, shelterId, verb, url, data=None, headers={}):
+    status = ''
+
+    try:
+        if verb == 'get':
+            r = requests.get(url, headers={**headers, **UA_HEADER}, params=data)
+            status = str(r.status_code)
+        elif verb == 'post':
+            r = requests.post(url, headers={**headers, **UA_HEADER}, data=data)
+            status = str(r.status_code)
+        else:
+            return None
+    except requests.ConnectionError:
+        status = 'ConnectionError'
+
+    if status != '200':
+        print('Request failed: %s, %s, %s' % (status, provider, shelterId))
         for animalId in seen[provider][shelterId]:
             seen[provider][shelterId][animalId]['timeSeen'] = time.time()
-        return False
-    return True
+        return None
+
+    return r
 
 
 #
@@ -200,8 +215,8 @@ def checkRequest(r, provider, shelterId):
 #
 
 def runPAWS():
-    r = requests.get(PAWS_URL, headers=UA_HEADER)
-    if not checkRequest(r, 'PAWS', '0000'):
+    r = doRequest('PAWS', '0000', 'get', PAWS_URL)
+    if r == None:
         return
 
     h = html.document_fromstring(r.text)
@@ -246,8 +261,13 @@ def runPetangoShelter(shelterId):
         'recordAmount': 100
     }
 
-    r = requests.post(PETANGO_URL, data=search, headers={'ModuleId': '983', 'TabId': '278', **UA_HEADER})
-    if not checkRequest(r, 'Petango', str(shelterId)):
+    r = doRequest('Petango',
+                  str(shelterId),
+                  'post',
+                  PETANGO_URL,
+                  search,
+                  {'ModuleId': '983', 'TabId': '278'})
+    if r == None:
         return
 
     dogs = r.json()['items']
@@ -290,8 +310,13 @@ def runPetango(location, gender, breedId):
         'recordAmount': 100
     }
 
-    r = requests.post(PETANGO_URL, data=search, headers={'ModuleId': '843', 'TabId': '260', **UA_HEADER})
-    if not checkRequest(r, 'Petango', '0000'):
+    r = doRequest('Petango',
+                  '0000',
+                  'post',
+                  PETANGO_URL,
+                  search,
+                  {'ModuleId': '843', 'TabId': '260'})
+    if r == None:
         return
 
     dogs = r.json()['items']
@@ -324,8 +349,13 @@ def runPetfinderShelter(shelterId, page=1):
         'include_transportable': 'true'
     }
 
-    r = requests.get(PETFINDER_URL, params=search, headers={'X-Requested-With': 'XMLHttpRequest', **UA_HEADER})
-    if not checkRequest(r, 'Petfinder', shelterId):
+    r = doRequest('Petfinder',
+                  shelterId,
+                  'get',
+                  PETFINDER_URL,
+                  search,
+                  {'X-Requested-With': 'XMLHttpRequest'})
+    if r == None:
         return
 
     result = r.json()['result']
@@ -370,8 +400,12 @@ def runPetharbor(shelterId, page=1):
         'page': str(page)
     }
 
-    r = requests.get(PETHARBOR_URL, params=search, headers=UA_HEADER)
-    if not checkRequest(r, 'Petharbor', shelterId):
+    r = doRequest('Petharbor',
+                  shelterId,
+                  'get',
+                  PETHARBOR_URL,
+                  search)
+    if r == None:
         return
 
     h = html.document_fromstring(r.text)

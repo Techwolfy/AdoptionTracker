@@ -1,5 +1,5 @@
-AdoptionTracker
-===============
+ShelterScraper
+==============
 
 Track nearby dogs available for adoption in real time.
 
@@ -15,4 +15,4 @@ Dependencies
 License
 -------
 
-AdoptionTracker is published under the MIT license. For details, see [`LICENSE`](LICENSE).
+ShelterScraper is published under the MIT license. For details, see [`LICENSE`](LICENSE).

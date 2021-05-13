@@ -134,7 +134,7 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
         'pending': adoptionPending,
         'provider': provider,
         'timeFound': seen[provider][shelterId][animalId]['timeFound'] if animalSeen else time.time(),
-        'timePending': time.time() if animalSeen else 0,
+        'timePending': time.time() if animalSeen or adoptionPending else 0,
         'timeAdopted': 0,
         'timeSeen': time.time(),
         'data': data
@@ -148,7 +148,8 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
         with open('dogs/%s.%s' % (animalId, ext), 'wb') as f:
             f.write(image.content)
 
-    printDog(seen[provider][shelterId][animalId])
+    if not newPhoto:
+        printDog(seen[provider][shelterId][animalId])
     if not animalPending and not newPhoto:
         alertTriggered = True
 

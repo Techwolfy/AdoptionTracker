@@ -204,7 +204,7 @@ def doRequest(provider, shelterId, verb, url, data=None, headers={}):
     except requests.ConnectionError:
         status = 'ConnectionError'
 
-    if status != '200':
+    if status != '200' or r.text == '':
         print('Request failed: %s, %s, %s' % (status, provider, shelterId))
         for animalId in seen[provider][shelterId]:
             seen[provider][shelterId][animalId]['timeSeen'] = time.time()

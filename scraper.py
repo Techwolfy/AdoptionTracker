@@ -23,8 +23,6 @@ UA_HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) G
 
 INTERVAL = 30
 
-PETANGO_GOLDEN_RETRIEVER = '601'
-
 
 #
 # Globals
@@ -487,7 +485,8 @@ if __name__ == '__main__':
 
         for shelter in keys['sheltersPetango']:
             runPetangoShelter(shelter)
-        runPetango(keys['location'], 'F', PETANGO_GOLDEN_RETRIEVER)
+        for breed in keys['breedsPetango']:
+            runPetango(keys['location'], 'F', breed)
 
         for shelter in keys['sheltersPetfinder']:
             runPetfinderShelter(shelter)

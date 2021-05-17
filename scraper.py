@@ -10,6 +10,12 @@ import time
 import requests
 from lxml import html, etree
 
+import email
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
 
 #
 # Constants
@@ -21,8 +27,7 @@ PETFINDER_URL = 'https://www.petfinder.com/search/'
 PETHARBOR_URL = 'http://petharbor.com/results.asp'
 UA_HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:86.0) Gecko/20100101 Firefox/86.0'}
 
-INTERVAL = 30
-
+INTERVAL = 60
 
 #
 # Globals
@@ -33,6 +38,9 @@ alertTriggered = False
 
 keys = {
     'petfinderToken': '',
+    'emailServer': '',
+    'emailFrom': '',
+    'emailTo': '',
     'location': '',
     'excludedBreeds': [],
     'breedsPetango': [],
@@ -97,6 +105,36 @@ def printDog(dog):
 
 
 #
+# Send dog information via email
+#
+
+def sendDog(dog):
+    if dog['photo'] == None or dog['timeAdopted'] != 0 or dog['pending']:
+        return
+
+    msg = MIMEMultipart()
+    msg['From'] = keys['emailFrom']
+    msg['To'] = keys['emailTo']
+    msg['Date'] = email.utils.formatdate(localtime=True)
+
+    msgText = '%s (%s-%s-%s)\n%s' % (dog['name'], dog['provider'], dog['shelterId'], dog['animalId'], dog['breed'])
+    msg.attach(MIMEText(msgText))
+
+    for f in os.listdir('dogs'):
+        if f.startswith(dog['animalId'] + '.') and not f.endswith('.json'):
+            with open('dogs/' + f, 'rb') as photo:
+                msgPhoto = MIMEImage(photo.read(), name=dog['animalId'])
+                msgPhoto['Content-Disposition'] = 'attachment; filename="%s"' % f
+                msg.attach(msgPhoto)
+
+    try:
+        smtp = smtplib.SMTP_SSL(keys['emailServer'], 465)
+        smtp.send_message(msg)
+    except:
+        print('Failed to send dog %s-%s-%s' % (dog['provider'], dog['shelterId'], dog['animalId']))
+
+
+#
 # Handle new dog
 #
 
@@ -153,6 +191,7 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
     if not newPhoto:
         printDog(seen[provider][shelterId][animalId])
     if not animalPending and not newPhoto:
+        sendDog(seen[provider][shelterId][animalId])
         alertTriggered = True
 
 

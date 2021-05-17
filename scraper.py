@@ -35,8 +35,10 @@ keys = {
     'petfinderToken': '',
     'location': '',
     'excludedBreeds': [],
+    'breedsPetango': [],
     'sheltersPetango': [],
-    'sheltersPetfinder': []
+    'sheltersPetfinder': [],
+    'sheltersPetharbor': []
 }
 
 seen = {}
@@ -194,10 +196,10 @@ def doRequest(provider, shelterId, verb, url, data=None, headers={}):
 
     try:
         if verb == 'get':
-            r = requests.get(url, headers={**headers, **UA_HEADER}, params=data)
+            r = requests.get(url, headers={**headers, **UA_HEADER}, params=data, allow_redirects=False)
             status = str(r.status_code)
         elif verb == 'post':
-            r = requests.post(url, headers={**headers, **UA_HEADER}, data=data)
+            r = requests.post(url, headers={**headers, **UA_HEADER}, data=data, allow_redirects=False)
             status = str(r.status_code)
         else:
             return None

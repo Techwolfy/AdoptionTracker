@@ -201,7 +201,6 @@ def handleDog(provider, shelterId, animalId, name, breed, photoUrl, adoptionPend
 
 def checkDogs():
     now = time.time()
-    delta = False
 
     for provider in seen:
         for shelterId in seen[provider]:
@@ -220,10 +219,6 @@ def checkDogs():
                     f.write(json.dumps(dog))
 
                 printDog(dog)
-                delta = True
-
-    if delta:
-        print()
 
 
 #
